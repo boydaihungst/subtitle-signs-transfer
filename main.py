@@ -42,7 +42,7 @@ def transfer_signs(source_subs: SSAFile, target_subs: SSAFile):
 
 def transfer_sign_events(source_subs: SSAFile, target_subs: SSAFile):
     # Copy only events whose style name contains "sign" (case-insensitive)
-    excluded_prefixes = ("\\be", "\\fe", "\\r", "\\bord" "\\q", "\\i", "\\u", "\\s")
+    excluded_prefixes = ("\\be", "\\fe", "\\r", "\\b", "\\bord" "\\q", "\\i", "\\u", "\\s")
 
     sign_events = [
         event
