@@ -45,6 +45,18 @@ def transfer_sign_events(source_subs: SSAFile, target_subs: SSAFile):
     excluded_prefixes = ("\\N", "\\be", "\\fe", "\\r", "\\b", "\\bord", "\\q", "\\i", "\\u", "\\s")
     added_events = []
 
+    sign_events = [
+        event
+        for event in source_subs.events
+        if not event.is_comment and event not in added_events and ("sign" in event.style.lower())
+    ]
+    if len(sign_events) > 0:
+        sign_start_marker = pysubs2.SSAEvent(start=0, end=0, text="SIGN", type="Comment")
+        target_subs.events.append(sign_start_marker)
+        # Append to target events
+        target_subs.events.extend(sign_events)
+        added_events.extend(sign_events)
+
     special_tags_events = [
         event
         for event in source_subs.events
@@ -109,17 +121,6 @@ def transfer_sign_events(source_subs: SSAFile, target_subs: SSAFile):
         # Append to target events
         target_subs.events.extend(special_margin_events)
         added_events.extend(special_margin_events)
-
-    sign_events = [
-        event
-        for event in source_subs.events
-        if not event.is_comment and event not in added_events and ("sign" in event.style.lower())
-    ]
-    if len(sign_events) > 0:
-        sign_start_marker = pysubs2.SSAEvent(start=0, end=0, text="SIGN", type="Comment")
-        target_subs.events.append(sign_start_marker)
-        # Append to target events
-        target_subs.events.extend(sign_events)
 
 
 if __name__ == "__main__":
