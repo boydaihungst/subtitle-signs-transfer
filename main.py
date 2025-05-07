@@ -61,6 +61,7 @@ def transfer_sign_events(source_subs: SSAFile, target_subs: SSAFile):
         event
         for event in source_subs.events
         if not event.is_comment
+        and event not in added_events
         and (
             "".join(
                 tag
