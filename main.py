@@ -47,7 +47,7 @@ def transfer_sign_events(source_subs: SSAFile, target_subs: SSAFile):
     special_margin_styles = [
         style_name
         for style_name, style in source_subs.styles.items()
-        if style.marginl > 200 or style.marginr > 200 or style.marginv > 200
+        if style.marginl > 300 or style.marginr > 300 or style.marginv > 300
     ]
 
     special_alignment_styles = [
