@@ -44,21 +44,44 @@ def transfer_sign_events(source_subs: SSAFile, target_subs: SSAFile):
     # Copy only events whose style name contains "sign" (case-insensitive)
     excluded_prefixes = ("\\be", "\\fe", "\\r", "\\b", "\\bord" "\\q", "\\i", "\\u", "\\s")
 
-    special_styles = [
+    special_margin_styles = [
         style_name
         for style_name, style in source_subs.styles.items()
-        if "sign" in style_name.lower()
-        or style.marginl > 200
-        or style.marginr > 200
-        or style.marginv > 200
-        or style.alignment not in [Alignment.BOTTOM_LEFT]
+        if style.marginl > 200 or style.marginr > 200 or style.marginv > 200
     ]
-    sign_events = [
+
+    special_alignment_styles = [
+        style_name
+        for style_name, style in source_subs.styles.items()
+        if style.alignment not in [Alignment.BOTTOM_CENTER]
+    ]
+
+    special_alignment_events = [
         event
         for event in source_subs.events
         if not event.is_comment
         and (
-            event.style.lower() in special_styles
+            event.style in special_alignment_styles
+            or "".join(
+                tag
+                for block in re.findall(r"{[^}]*}", event.text)
+                for tag in re.findall(r"\\[a-zA-Z]+\(?[^\\}]*\)?", block)
+                if not any(tag.startswith(prefix) for prefix in excluded_prefixes)
+            )
+        )
+    ]
+    if len(special_alignment_events) > 0:
+        special_alignment_marker = pysubs2.SSAEvent(start=0, end=0, text="Lines with unusual Alignment", type="Comment")
+        target_subs.events.append(special_alignment_marker)
+        # Append to target events
+        target_subs.events.extend(special_alignment_events)
+
+    special_margin_events = [
+        event
+        for event in source_subs.events
+        if not event.is_comment
+        and (
+            event.style in special_margin_styles
             or "".join(
                 tag
                 for block in re.findall(r"{[^}]*}", event.text)
@@ -68,11 +91,18 @@ def transfer_sign_events(source_subs: SSAFile, target_subs: SSAFile):
         )
     ]
 
-    sign_start_marker = pysubs2.SSAEvent(start=0, end=0, text="SIGN", type="Comment")
+    if len(special_margin_events) > 0:
+        special_margin_marker = pysubs2.SSAEvent(start=0, end=0, text="Lines with unusual Margin", type="Comment")
+        target_subs.events.append(special_margin_marker)
+        # Append to target events
+        target_subs.events.extend(special_margin_events)
 
-    target_subs.events.append(sign_start_marker)
-    # Append to target events
-    target_subs.events.extend(sign_events)
+    sign_events = [event for event in source_subs.events if not event.is_comment and ("sign" in event.style.lower())]
+    if len(sign_events) > 0:
+        sign_start_marker = pysubs2.SSAEvent(start=0, end=0, text="SIGN", type="Comment")
+        target_subs.events.append(sign_start_marker)
+        # Append to target events
+        target_subs.events.extend(sign_events)
 
 
 if __name__ == "__main__":
