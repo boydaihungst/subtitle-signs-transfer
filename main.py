@@ -4,7 +4,7 @@ import random
 import re
 
 import pysubs2
-from pysubs2 import SSAFile
+from pysubs2 import Alignment, SSAFile
 
 
 def transfer_signs(source_subs: SSAFile, target_subs: SSAFile):
@@ -44,12 +44,21 @@ def transfer_sign_events(source_subs: SSAFile, target_subs: SSAFile):
     # Copy only events whose style name contains "sign" (case-insensitive)
     excluded_prefixes = ("\\be", "\\fe", "\\r", "\\b", "\\bord" "\\q", "\\i", "\\u", "\\s")
 
+    special_styles = [
+        style_name
+        for style_name, style in source_subs.styles.items()
+        if "sign" in style_name.lower()
+        or style.marginl > 200
+        or style.marginr > 200
+        or style.marginv > 200
+        or style.alignment not in [Alignment.BOTTOM_LEFT]
+    ]
     sign_events = [
         event
         for event in source_subs.events
         if not event.is_comment
         and (
-            "sign" in event.style.lower()
+            event.style.lower() in special_styles
             or "".join(
                 tag
                 for block in re.findall(r"{[^}]*}", event.text)
@@ -59,6 +68,9 @@ def transfer_sign_events(source_subs: SSAFile, target_subs: SSAFile):
         )
     ]
 
+    sign_start_marker = pysubs2.SSAEvent(start=0, end=0, text="SIGN", type="Comment")
+
+    target_subs.events.append(sign_start_marker)
     # Append to target events
     target_subs.events.extend(sign_events)
 
