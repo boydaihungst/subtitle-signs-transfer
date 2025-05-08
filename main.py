@@ -87,15 +87,7 @@ def transfer_sign_events(source_subs: SSAFile, target_subs: SSAFile):
         for event in source_subs.events
         if not event.is_comment
         and event not in added_events
-        and (
-            event.style in special_alignment_styles
-            or "".join(
-                tag
-                for block in re.findall(r"{[^}]*}", event.text)
-                for tag in re.findall(r"\\[a-zA-Z]+\(?[^\\}]*\)?", block)
-                if not any(tag.startswith(prefix) for prefix in excluded_prefixes)
-            )
-        )
+        and event.style in special_alignment_styles
     ]
     if len(special_alignment_events) > 0:
         special_alignment_marker = pysubs2.SSAEvent(start=0, end=0, text="Lines with unusual Alignment", type="Comment")
@@ -113,7 +105,8 @@ def transfer_sign_events(source_subs: SSAFile, target_subs: SSAFile):
     special_margin_events = [
         event
         for event in source_subs.events
-        if not event.is_comment and event not in added_events and event.style in special_margin_styles
+        if not event.is_comment and event not in added_events and (event.style in special_margin_styles or event.marginl != 0 or event.marginr != 0 or event.marginv != 0
+)
     ]
 
     if len(special_margin_events) > 0:
