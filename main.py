@@ -2,9 +2,12 @@ import argparse
 import os
 import random
 import re
+import shutil
 
 import pysubs2
 from pysubs2 import Alignment, SSAFile
+
+import resample_resolution
 
 
 def transfer_signs(source_subs: SSAFile, target_subs: SSAFile):
@@ -120,6 +123,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Transfer signs from one .ass subtitle file(s) to another.")
     parser.add_argument("source", help="Path to the source .ass file or source directory.")
     parser.add_argument("target", help="Path to the target .ass file or target directory.")
+    parser.add_argument(
+        "-a",
+        "--aegisubcli",
+        dest="aegisubcli",
+        help="Path to the aegisub-cli tool. Defaults to searching for aegisub-cli in the PATH environment variable.",
+    )
 
     args = parser.parse_args()
 
@@ -129,18 +138,19 @@ if __name__ == "__main__":
     # Check if inputs are files or directories
     source_is_dir = os.path.isdir(source_path)
     target_is_dir = os.path.isdir(target_path)
+    aegisubcli = args.aegisubcli
 
     # Validate input types
     if source_is_dir != target_is_dir:
-        print("Error: Both source and target must be either files or directories.")
+        print("❌ Error: Both source and target must be either files or directories.")
         exit(1)
 
     if not source_is_dir and not os.path.isfile(source_path):
-        print(f"Error: Source file not found at {source_path}")
+        print(f"❌ Error: Source file not found at {source_path}")
         exit(1)
 
     if not target_is_dir and not os.path.isfile(target_path):
-        print(f"Error: Target file not found at {target_path}")
+        print(f"❌ Error: Target file not found at {target_path}")
         exit(1)
 
     if not source_is_dir:
@@ -153,25 +163,51 @@ if __name__ == "__main__":
             # Resolution check for single file
             source_playresx = source_subs.info.get("PlayResX", 0)
             source_playresy = source_subs.info.get("PlayResY", 0)
-            target_playresx = target_subs.info.get("PlayResX", 1)  # Default to 1 to avoid division by zero if missing
-            target_playresy = target_subs.info.get("PlayResY", 1)  # Default to 1
+            target_playresx = target_subs.info.get("PlayResX", 1)
+            target_playresy = target_subs.info.get("PlayResY", 1)
+
+            if target_playresx == 1 or target_playresy == 1:
+                print("❌ Error: target file must have PlayResX and PlayResY")
+                exit(1)
 
             if source_playresx != target_playresx or source_playresy != target_playresy:
-                print("Error: PlayResX and PlayResY must be the same in both files.")
-                exit(1)
+                if aegisubcli or shutil.which("aegisub-cli"):
+                    if aegisubcli or shutil.which("aegisub-cli"):
+                        if aegisubcli and not os.path.exists(aegisubcli):
+                            print(f"❌ Error: aegisub-cli not found at {aegisubcli}")
+                            exit(1)
+
+                    print(
+                        f"🔁 Info: PlayResX and PlayResY differ. Resampling subtitles to target resolution {target_playresx}x{target_playresy}..."
+                    )
+                    resample_resolution_args = [
+                        source_path,
+                        "-v",
+                        f"{target_playresx}x{target_playresy}",
+                        "-a",
+                        aegisubcli or "aegisub-cli",
+                    ]
+                    resample_resolution.main(resample_resolution_args)
+                else:
+                    print(
+                        f"""❌ Error: PlayResX and PlayResY differ and aegisub-cli not found in PATH. Use -a /path/to/aegisub-cli to continue.
+                            Or use aegisub, subtitleedit to change subtitle resolution manually.
+                        """
+                    )
+                    exit(1)
 
             # Perform sign transfer
             transfer_signs(source_subs, target_subs)
 
             # Overwrite target file
             target_subs.save(target_path)
-            print("Sign transfer complete for single file pair.")
+            print("✅ Sign transfer complete for single file pair.")
 
         except pysubs2.exceptions.Pysubs2Error as e:
-            print(f"Error processing files: {e}")
+            print(f"❌ Error processing files: {e}")
             exit(1)
         except Exception as e:
-            print(f"An unexpected error occurred: {e}")
+            print(f"❌ An unexpected error occurred: {e}")
             exit(1)
 
     else:
@@ -200,31 +236,55 @@ if __name__ == "__main__":
                     target_playresx = target_subs.info.get("PlayResX", 1)  # Default to 1
                     target_playresy = target_subs.info.get("PlayResY", 1)  # Default to 1
 
-                    if source_playresx != target_playresx or source_playresy != target_playresy:
-                        print(f"Warning: PlayResX and PlayResY differ for {filename}. Skipping this pair.")
+                    if target_playresx == 1 or target_playresy == 1:
+                        print("❌ Error: target file must have PlayResX and PlayResY")
                         skipped_count += 1
                         continue  # Skip to the next file pair
+                    if source_playresx != target_playresx or source_playresy != target_playresy:
+                        if aegisubcli or shutil.which("aegisub-cli"):
+                            if aegisubcli and not os.path.exists(aegisubcli):
+                                print(f"❌ Error: aegisub-cli not found at {aegisubcli}")
+                                exit(1)
+                            print(
+                                f"🔁 Info: PlayResX and PlayResY differ for {filename}. Resampling subtitles to target resolution {target_playresx}x{target_playresy}..."
+                            )
+                            resample_resolution_args = [
+                                full_source_path,
+                                "-v",
+                                f"{target_playresx}x{target_playresy}",
+                                "-a",
+                                aegisubcli or "aegisub-cli",
+                            ]
+                            resample_resolution.main(resample_resolution_args)
+                        else:
+                            skipped_count += 1
+                            print(
+                                f"""❌ Error: PlayResX and PlayResY differ for {filename} and aegisub-cli not found in PATH. Skipping this pair.
+                                              Use -a /path/to/aegisub-cli or aegisub, subtitleedit to change subtitle resolution manually.
+                                """
+                            )
+                            continue  # Skip to the next file pair
 
                     # Perform sign transfer
                     transfer_signs(source_subs, target_subs)
 
                     # Overwrite target file
                     target_subs.save(full_target_path)
-                    print(f"Sign transfer complete for {filename}.")
+                    print(f"✅ Sign transfer complete for {filename}.")
                     processed_count += 1
 
                 except pysubs2.exceptions.Pysubs2Error as e:
-                    print(f"Error processing {filename}: {e}. Skipping.")
+                    print(f"❌ Error processing {filename}: {e}. Skipping.")
                     skipped_count += 1
                     continue
                 except Exception as e:
-                    print(f"An unexpected error occurred processing {filename}: {e}. Skipping.")
+                    print(f"❌Error: An unexpected error occurred processing {filename}: {e}. Skipping.")
                     skipped_count += 1
                     continue
             else:
-                print(f"Warning: Corresponding target file not found for {filename} in {target_path}. Skipping.")
+                print(f"⚠️ Warning: Corresponding target file not found for {filename} in {target_path}. Skipping.")
                 skipped_count += 1
 
         print("\n--- Summary ---")
-        print(f"Processed {processed_count} file pair(s).")
-        print(f"Skipped {skipped_count} file pair(s).")
+        print(f"✅ Processed {processed_count} file pair(s).")
+        print(f"⚠️ Skipped {skipped_count} file pair(s).")
