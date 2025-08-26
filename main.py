@@ -3,6 +3,7 @@ import os
 import random
 import re
 import shutil
+from typing import Optional
 
 import pysubs2
 from pysubs2 import Alignment, SSAFile
@@ -10,7 +11,12 @@ from pysubs2 import Alignment, SSAFile
 import resample_resolution
 
 
-def transfer_signs(source_subs: SSAFile, target_subs: SSAFile):
+def tag_with_slash(tag: str) -> str:
+    # make sure it always starts with a backslash
+    return "\\" + tag.lstrip("\\")
+
+
+def transfer_signs(source_subs: SSAFile, target_subs: SSAFile, extra_excluded_tags: Optional[list[str]] = None):
     # Step 1: Collect used style names from source events
     used_style_names = set(event.style for event in source_subs.events if hasattr(event, "style"))
 
@@ -35,7 +41,7 @@ def transfer_signs(source_subs: SSAFile, target_subs: SSAFile):
                         continue
                 target_subs.styles[random_name] = source_subs.styles[random_name]
 
-    transfer_sign_events(source_subs, target_subs)
+    transfer_sign_events(source_subs, target_subs, extra_excluded_tags)
 
     # Step 3: Remove unused styles from the target
     # (after combining, in case there were already styles)
@@ -43,9 +49,16 @@ def transfer_signs(source_subs: SSAFile, target_subs: SSAFile):
     target_subs.styles = {name: style for name, style in target_subs.styles.items() if name in final_used_styles}
 
 
-def transfer_sign_events(source_subs: SSAFile, target_subs: SSAFile):
+def transfer_sign_events(source_subs: SSAFile, target_subs: SSAFile, extra_excluded_tags: Optional[list[str]] = None):
     # Copy only events whose style name contains "sign" (case-insensitive)
-    excluded_prefixes = ("\\N", "\\be", "\\fe", "\\r", "\\b", "\\bord", "\\q", "\\i", "\\u", "\\s")
+    excluded_prefixes = ("\\N", "\\be", "\\fe", "\\r", "\\b", "\\bord", "\\q", "\\u", "\\s")
+
+    # Add extra excluded tags
+    if extra_excluded_tags is not None:
+        excluded_prefixes += tuple(extra_excluded_tags)
+    # Unique tuples
+    excluded_prefixes = tuple(dict.fromkeys(excluded_prefixes))
+
     added_events = []
 
     sign_events = [
@@ -129,16 +142,26 @@ if __name__ == "__main__":
         dest="aegisubcli",
         help="Path to the aegisub-cli tool. Defaults to searching for aegisub-cli in the PATH environment variable.",
     )
+    parser.add_argument(
+        "-s",
+        "--skip-tags",
+        dest="extra_excluded_tags",
+        nargs="*",
+        type=tag_with_slash,
+        default=[],
+        help=".ASS extra tags to skip (without backslash). These tags will be 'skipped' before checking whether the line has special tags or not. Example: skip \\i (italic) or \\pos tags lines '-s pos i' these tags will add to the default skipped tags (\\N \\be \\fe \\r \\b \\bord \\q \\u \\s).",
+    )
 
     args = parser.parse_args()
 
     source_path = args.source
     target_path = args.target
+    aegisubcli = args.aegisubcli
+    extra_excluded_tags = args.extra_excluded_tags
 
     # Check if inputs are files or directories
     source_is_dir = os.path.isdir(source_path)
     target_is_dir = os.path.isdir(target_path)
-    aegisubcli = args.aegisubcli
 
     # Validate input types
     if source_is_dir != target_is_dir:
@@ -197,7 +220,7 @@ if __name__ == "__main__":
                     exit(1)
 
             # Perform sign transfer
-            transfer_signs(source_subs, target_subs)
+            transfer_signs(source_subs, target_subs, extra_excluded_tags)
 
             # Overwrite target file
             target_subs.save(target_path)
@@ -266,7 +289,7 @@ if __name__ == "__main__":
                             continue  # Skip to the next file pair
 
                     # Perform sign transfer
-                    transfer_signs(source_subs, target_subs)
+                    transfer_signs(source_subs, target_subs, extra_excluded_tags)
 
                     # Overwrite target file
                     target_subs.save(full_target_path)
