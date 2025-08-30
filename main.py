@@ -219,6 +219,8 @@ if __name__ == "__main__":
                     )
                     exit(1)
 
+            # Reload source sub after resampling
+            source_subs = pysubs2.load(source_path)
             # Perform sign transfer
             transfer_signs(source_subs, target_subs, extra_excluded_tags)
 
@@ -288,6 +290,8 @@ if __name__ == "__main__":
                             )
                             continue  # Skip to the next file pair
 
+                    # Reload source sub after resampling
+                    source_subs = pysubs2.load(full_source_path)
                     # Perform sign transfer
                     transfer_signs(source_subs, target_subs, extra_excluded_tags)
 
